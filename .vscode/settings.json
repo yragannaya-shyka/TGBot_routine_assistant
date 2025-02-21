@@ -1,0 +1,4 @@
+{
+  "python.terminal.activateEnvInCurrentTerminal": false,
+  "python.REPL.enableREPLSmartSend": false
+}
