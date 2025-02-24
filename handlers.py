@@ -4,6 +4,7 @@ from utils.utils import read_load_json_data, bitrix_id_by_name, bitrix_id_by_cha
 from utils.bitrix.bitrix import BitrixRequest
 from utils.bitrix.disk import get_folder_content, get_disk_content_report, FOLDER_IDS
 from utils.bitrix.faq import faq_data, get_questions_page, find_closest_question
+from utils.classes import ProjectArchClass, FaqClass
 import urllib.parse
 from messages import  welcome_message, info_message, help_message, rights_list_message, test_funcs_message
 from keyboards.keyboards import create_keyboard, get_cancel_keyboard
@@ -21,8 +22,8 @@ def new_funcs_handler(message: types.Message, bot: TeleBot):
 
 
 def project_arch_handle(message: types.Message, bot: TeleBot):
-    keyboard = create_keyboard([types.KeyboardButton("Подготовить отчет по папкам"),
-                                types.KeyboardButton("Содержимое папок на данный момент")])
+    pa = ProjectArchClass()
+    keyboard = create_keyboard([option for option in pa.options])
     bot.send_message(message.chat.id, "Выберите интересующий вас функионал", parse_mode="Markdown", reply_markup=keyboard)
 
 
@@ -51,27 +52,28 @@ def request_handle(message: types.Message, bot: TeleBot):
     bot.send_message(message.chat.id, 'Выберите интересующий вас запрос из меню ниже.', reply_markup=keyboard)
 
 def faq_handle(message: types.Message, bot: TeleBot):
+    faq = FaqClass()
     page = 1
-    questions = get_questions_page(page)
+    # questions = get_questions_page(page)
+    questions = faq.data.keys()
     keyboard = create_keyboard([q for q in questions])
     keyboard.add(types.KeyboardButton("➡️ Следующая страница"))
     bot.send_message(message.chat.id, "Выберите интересующий вас вопрос", reply_markup=keyboard)
 
 
 def handle_message(message: types.Message, bot:TeleBot):
-
+    pa = ProjectArchClass()
+    faq = FaqClass()
     requests = {
         "Подключение нового сотрудника": (invite_new_user_step_name, "Введите ФИО нового сотрудника"),
         "Предоставление прав доступа": (procces_access_rights_step_name, "Введите ФИО сотрудника, кому необходимо предоставить права доступа."),
         "Отправить уведомление": (procces_notify_step, "Введите текст уведомления"),
     }
 
-    project_arc = {"Подготовить отчет по папкам": get_disk_content_report(FOLDER_IDS),
-                   "Содержимое папок на данный момент": get_folder_content(367992)}
+    project_arc = pa.options
 
 
-    faq_question_answer = {"Выйти в отпуск":"Чтобы выйти в отпуск вам необходимо заполнить соответствующий документ",
-                           "Выйти на больничный": "Чтобы выйти на болничный вам необходимо иметь при себе больничный лист"}
+    faq_data = faq.data
 
     if message.text in requests:
         handler, prompt = requests[message.text]
@@ -80,8 +82,8 @@ def handle_message(message: types.Message, bot:TeleBot):
     elif message.text in project_arc:
         text = project_arc[message.text]
         msg = bot.send_message(message.chat.id, text, reply_markup=get_cancel_keyboard(), parse_mode="Markdown", disable_web_page_preview=True)
-    elif message.text in faq_question_answer:
-        answer = faq_question_answer[message.text]
+    elif message.text in faq_data:
+        answer = faq_data[message.text]
 
         bot.send_message(message.chat.id, answer, reply_markup=get_cancel_keyboard(), parse_mode="Markdown", disable_web_page_preview=True)
         bot.register_next_step_handler(message, faq_handle, bot=bot)
@@ -106,9 +108,6 @@ def handle_faq(message: types.Message, bot: TeleBot):
     #     if not found:
     #         bot.send_message(message.chat.id, "Извините, я не нашел ответа на ваш вопрос. Попробуйте задать его по-другому.")
 
-
-def get_disk_content(message: types.Message, bot: TeleBot):
-    bot.send_message(message.chat.id, get_folder_content())
 
 def procces_notify_step(message: types.Message, bot: TeleBot):
 
@@ -225,8 +224,9 @@ HANDLERS = [
     (help_handle, lambda message: message.text.startswith("/help")),
     (info_handle, lambda message: message.text.startswith("/info")),
     (new_funcs_handler, lambda message: message.text.startswith("/tests")),
-    (handle_faq, lambda message: True),
-    (handle_message, lambda message: True)
+
+    (handle_message, lambda message: True),
+        (handle_faq, lambda message: True)
 
 ]
 
