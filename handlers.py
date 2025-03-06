@@ -1,9 +1,7 @@
 from telebot import types, TeleBot
 import requests
-from utils.utils import read_load_json_data, bitrix_id_by_name, bitrix_id_by_chat_id
+from utils.utils import read_load_json_data, bitrix_id_by_name, bitrix_id_by_chat_id, escape_markdown
 from utils.bitrix.bitrix import BitrixRequest
-from utils.bitrix.disk import get_folder_content, get_disk_content_report, FOLDER_IDS
-from utils.bitrix.faq import faq_data, get_questions_page, find_closest_question
 from utils.classes import ProjectArchClass, FaqClass
 import urllib.parse
 from messages import  welcome_message, info_message, help_message, rights_list_message, test_funcs_message
@@ -15,6 +13,13 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+faq = FaqClass()
+pa = ProjectArchClass()
+
+state = {
+    "status": "null"
+}
+
 def new_funcs_handler(message: types.Message, bot: TeleBot):
     keyboard = create_keyboard([types.KeyboardButton("FAQ"),
                                 types.KeyboardButton("Проектный архив")])
@@ -22,7 +27,8 @@ def new_funcs_handler(message: types.Message, bot: TeleBot):
 
 
 def project_arch_handle(message: types.Message, bot: TeleBot):
-    pa = ProjectArchClass()
+    state["status"] = "project_arch"
+    print(state["status"])
     keyboard = create_keyboard([option for option in pa.options])
     bot.send_message(message.chat.id, "Выберите интересующий вас функионал", parse_mode="Markdown", reply_markup=keyboard)
 
@@ -32,7 +38,9 @@ def hello_handler(message: types.Message, bot: TeleBot):
 
 
 def start_handle(message: types.Message, bot: TeleBot):
-    keyboard = create_keyboard([types.KeyboardButton("Создать запрос")])
+    keyboard = create_keyboard([types.KeyboardButton("Создать запрос"),
+                                types.KeyboardButton("FAQ"),
+                                types.KeyboardButton("Проектный архив")])
     bot.send_message(message.chat.id, welcome_message, parse_mode="Markdown", reply_markup=keyboard)
 
 
@@ -46,68 +54,68 @@ def info_handle(message: types.Message, bot: TeleBot):
 
 
 def request_handle(message: types.Message, bot: TeleBot):
+    state["status"] = "request"
+    print(state["status"])
     keyboard = create_keyboard([types.KeyboardButton("Подключение нового сотрудника"),
                                 types.KeyboardButton("Предоставление прав доступа"),
                                 types.KeyboardButton("Отправить уведомление")])
     bot.send_message(message.chat.id, 'Выберите интересующий вас запрос из меню ниже.', reply_markup=keyboard)
 
 def faq_handle(message: types.Message, bot: TeleBot):
-    faq = FaqClass()
-    page = 1
-    # questions = get_questions_page(page)
-    questions = faq.data.keys()
-    keyboard = create_keyboard([q for q in questions])
-    keyboard.add(types.KeyboardButton("➡️ Следующая страница"))
+    categories = faq.categories
+    keyboard = create_keyboard([c for c in categories])
+    state["status"] = "faq"
+    print(state["status"])
     bot.send_message(message.chat.id, "Выберите интересующий вас вопрос", reply_markup=keyboard)
 
 
-def handle_message(message: types.Message, bot:TeleBot):
-    pa = ProjectArchClass()
-    faq = FaqClass()
+def handle_request(message: types.Message, bot:TeleBot):
     requests = {
         "Подключение нового сотрудника": (invite_new_user_step_name, "Введите ФИО нового сотрудника"),
         "Предоставление прав доступа": (procces_access_rights_step_name, "Введите ФИО сотрудника, кому необходимо предоставить права доступа."),
         "Отправить уведомление": (procces_notify_step, "Введите текст уведомления"),
     }
 
-    project_arc = pa.options
-
-
-    faq_data = faq.data
-
     if message.text in requests:
         handler, prompt = requests[message.text]
         msg = bot.send_message(message.chat.id, prompt, reply_markup=get_cancel_keyboard())
         bot.register_next_step_handler(msg, handler, bot=bot)
-    elif message.text in project_arc:
-        text = project_arc[message.text]
-        msg = bot.send_message(message.chat.id, text, reply_markup=get_cancel_keyboard(), parse_mode="Markdown", disable_web_page_preview=True)
-    elif message.text in faq_data:
-        answer = faq_data[message.text]
-
-        bot.send_message(message.chat.id, answer, reply_markup=get_cancel_keyboard(), parse_mode="Markdown", disable_web_page_preview=True)
-        bot.register_next_step_handler(message, faq_handle, bot=bot)
     else:
         bot.reply_to(message, f"Команды '{message.text}' не существует.")
 
-def handle_faq(message: types.Message, bot: TeleBot):
-    closest_question = find_closest_question(message.text)
-    if closest_question:
-        bot.send_message(message.chat.id, faq_data[closest_question])
-    else:
-        bot.send_message(message.chat.id, "Извините, я не нашел ответа на ваш вопрос.")
-    # if message.text in faq_data:
-    #     bot.send_message(message.chat.id, faq_data[message.text])
-    # else:
-    #     found = False
-    #     for question, answer in faq_data.items():
-    #         if message.text.lower() in question.lower():
-    #             bot.send_message(message.chat.id, answer)
-    #             found = True
-    #             break
-    #     if not found:
-    #         bot.send_message(message.chat.id, "Извините, я не нашел ответа на ваш вопрос. Попробуйте задать его по-другому.")
 
+@handle_errors
+@handle_action_cancel
+def handle_faq(message: types.Message, bot: TeleBot):
+    questions  = faq.categories[message.text]
+    keyboard = create_keyboard([q for q in questions])
+    bot.send_message(message.chat.id, "Выберите вопрос", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=keyboard)
+    # closest_question = find_closest_question(message.text)
+    # if closest_question:
+    #     bot.send_message(message.chat.id, faq_data[closest_question])
+    # else:
+    #     bot.send_message(message.chat.id, "Извините, я не нашел ответа на ваш вопрос.")
+
+@handle_errors
+@handle_action_cancel
+def handle_faq_question(message: types.Message, bot: TeleBot):
+    for couple in faq.categories.values():
+        if message.text in couple:
+            answer = couple[message.text]
+            bot.send_message(message.chat.id, answer, parse_mode="Markdown", disable_web_page_preview=True)
+
+@handle_errors
+@handle_action_cancel
+def handle_project_arch(message: types.Message, bot: TeleBot):
+    # text = pa.options[message.text]
+    keyboard = pa.get_project_keyboard()
+    text = "Выберите проект"
+    bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode="HTML", disable_web_page_preview=True)
+
+
+def handle_project_arch_content(message: types.Message, bot: TeleBot):
+    text = escape_markdown(pa.get_project_folders_content(message.text))
+    bot.send_message(message.chat.id, text=text, parse_mode="Markdown", disable_web_page_preview=True)
 
 def procces_notify_step(message: types.Message, bot: TeleBot):
 
@@ -217,16 +225,19 @@ def invite_new_user_step_supervisor(message: types.Message, bot: TeleBot, br: Bi
 HANDLERS = [
     (hello_handler, lambda message: message.text == "Hello"),
     (request_handle, lambda message: message.text == "Создать запрос"),
-    (project_arch_handle, lambda message: message.text == "Проектный архив"),
-    (faq_handle, lambda message: message.text == "FAQ"),
+    (project_arch_handle, lambda message: message.text == "Проектный архив" or message.text.startswith("/prach")),
+    (faq_handle, lambda message: message.text == "FAQ" or message.text.startswith("/faq")),
     (request_handle, lambda message: message.text.startswith("/request")),
     (start_handle, lambda message: message.text.startswith("/start")),
     (help_handle, lambda message: message.text.startswith("/help")),
     (info_handle, lambda message: message.text.startswith("/info")),
     (new_funcs_handler, lambda message: message.text.startswith("/tests")),
+    (handle_faq_question, lambda message: state["status"] == "faq" and message.text in faq.get_questions()),
+    (handle_faq, lambda message: state["status"] == "faq"),
+    (handle_project_arch_content, lambda message: state["status"] == "project_arch" and message.text in pa.get_projects_list()),
+    (handle_project_arch, lambda message: state["status"] == "project_arch"),
+    (handle_request, lambda message: state["status"] == "request")
 
-    (handle_message, lambda message: True),
-        (handle_faq, lambda message: True)
 
 ]
 

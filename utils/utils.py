@@ -43,3 +43,9 @@ def cancelable_step(func):
 
 def process_step(message: types.Message, bot: TeleBot, step_name: str, next_step: callable, data: dict):
     data[step_name] = message.text
+
+def escape_markdown(text):
+    reserved_chars = r"_"
+    for char in reserved_chars:
+        text = text.replace(char, f"\\{char}")
+    return text
