@@ -30,7 +30,7 @@ def project_arch_handle(message: types.Message, bot: TeleBot):
     state["status"] = "project_arch"
     print(state["status"])
     keyboard = create_keyboard([option for option in pa.options])
-    bot.send_message(message.chat.id, "Выберите интересующий вас функионал", parse_mode="Markdown", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "Выберите интересующий вас функционал", parse_mode="Markdown", reply_markup=keyboard)
 
 
 def hello_handler(message: types.Message, bot: TeleBot):
@@ -66,7 +66,7 @@ def faq_handle(message: types.Message, bot: TeleBot):
     keyboard = create_keyboard([c for c in categories])
     state["status"] = "faq"
     print(state["status"])
-    bot.send_message(message.chat.id, "Выберите интересующий вас вопрос", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "Выберите категорию вопросов", reply_markup=keyboard)
 
 
 def handle_request(message: types.Message, bot:TeleBot):
@@ -101,7 +101,7 @@ def handle_faq(message: types.Message, bot: TeleBot):
 def handle_faq_question(message: types.Message, bot: TeleBot):
     for couple in faq.categories.values():
         if message.text in couple:
-            answer = couple[message.text]
+            answer = escape_markdown(couple[message.text])
             bot.send_message(message.chat.id, answer, parse_mode="Markdown", disable_web_page_preview=True)
 
 @handle_errors
