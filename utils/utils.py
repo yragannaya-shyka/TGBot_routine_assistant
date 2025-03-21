@@ -49,3 +49,25 @@ def escape_markdown(text):
     for char in reserved_chars:
         text = text.replace(char, f"\\{char}")
     return text
+
+def get_ur_users():
+    with open("urusers.json", "r", encoding="utf-8") as f_o:
+        urusers = json.load(f_o)
+    return urusers
+
+def user_access_by_id(user_chat_id):
+    with open("users.json", "r", encoding="utf-8") as f_o:
+        users = json.load(f_o)
+    return user_chat_id in users
+
+
+def registr_new_user(user_chat_id, name, username):
+    with open("users.json", "r", encoding="utf-8") as f_o:
+        users = json.load(f_o)
+    data = {"useraname":username,
+            "name": name,
+            "b24_user_id":""}
+    users[str(user_chat_id)] = data
+
+    with open("users.json", "w", encoding="utf-8") as f_o:
+        json.dump(users, f_o, indent=4, ensure_ascii=False)

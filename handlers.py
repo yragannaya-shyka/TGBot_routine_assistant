@@ -1,6 +1,6 @@
 from telebot import types, TeleBot
 import requests
-from utils.utils import read_load_json_data, bitrix_id_by_name, bitrix_id_by_chat_id, escape_markdown
+from utils.utils import read_load_json_data, bitrix_id_by_name, bitrix_id_by_chat_id, escape_markdown, get_ur_users, user_access_by_id, registr_new_user
 from utils.bitrix.bitrix import BitrixRequest
 from utils.classes import ProjectArchClass, FaqClass
 import urllib.parse
@@ -9,7 +9,7 @@ from keyboards.keyboards import create_keyboard, get_cancel_keyboard
 from decorators import handle_errors , handle_action_cancel
 from config import B24_WH, B24_ADMIN_ID
 import logging
-
+import json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -19,6 +19,10 @@ pa = ProjectArchClass()
 state = {
     "status": "null"
 }
+
+
+def restrict_access(message: types.Message, bot: TeleBot):
+    bot.reply_to(message, "Извините, у вас нет доступа к этому боту.")
 
 def new_funcs_handler(message: types.Message, bot: TeleBot):
     keyboard = create_keyboard([types.KeyboardButton("FAQ"),
@@ -38,11 +42,36 @@ def hello_handler(message: types.Message, bot: TeleBot):
 
 
 def start_handle(message: types.Message, bot: TeleBot):
-    keyboard = create_keyboard([types.KeyboardButton("Создать запрос"),
-                                types.KeyboardButton("FAQ"),
-                                types.KeyboardButton("Проектный архив")])
-    bot.send_message(message.chat.id, welcome_message, parse_mode="Markdown", reply_markup=keyboard)
+    if user_access_by_id(str(message.chat.id)):
+        keyboard = create_keyboard([types.KeyboardButton("Создать запрос"),
+                                    types.KeyboardButton("FAQ"),
+                                    types.KeyboardButton("Проектный архив")])
+        bot.send_message(message.chat.id, welcome_message, parse_mode="Markdown", reply_markup=keyboard)
+    else:
+        msg = bot.send_message(message.chat.id, "Вы не зарегестрированный пользователь. Пожалуйста, пройдите регестрацию. Введите полностью свое ФИО")
+        bot.register_next_step_handler(msg, new_user_name, bot=bot)
 
+@handle_action_cancel
+def new_user_name(message: types.Message, bot: TeleBot):
+    urusers = get_ur_users()
+    print(urusers)
+    if message.text in urusers:
+        msg = bot.send_message(message.chat.id, f"Пользователь найден. Введите пароль.")
+
+        bot.register_next_step_handler(msg, new_user_password, user=message.text, bot=bot)
+    else:
+        bot.send_message(message.chat.id, f"Пользователь не найден.")
+
+
+@handle_action_cancel
+def new_user_password(message: types.Message, bot: TeleBot, user: str):
+    urusers = get_ur_users()
+    if message.text == urusers[user]["password"]:
+        registr_new_user(message.chat.id, user, message.chat.username)
+        bot.send_message(message.chat.id, f"Регистрация прошла успешно.")
+    else:
+        msg = bot.send_message(message.chat.id, f"Неверный пароль. Попробуйте снова.")
+        bot.register_next_step_handler(msg, new_user_password,  bot=bot, user=user)
 
 def help_handle(message: types.Message, bot: TeleBot):
     keyboard = create_keyboard([types.KeyboardButton("Задать вопрос разработчику бота")])
@@ -223,12 +252,14 @@ def invite_new_user_step_supervisor(message: types.Message, bot: TeleBot, br: Bi
 
 
 HANDLERS = [
+    (start_handle, lambda message: message.text.startswith("/start")),
+    (restrict_access, lambda message: not user_access_by_id(str(message.chat.id))),
     (hello_handler, lambda message: message.text == "Hello"),
     (request_handle, lambda message: message.text == "Создать запрос"),
     (project_arch_handle, lambda message: message.text == "Проектный архив" or message.text.startswith("/prach")),
     (faq_handle, lambda message: message.text == "FAQ" or message.text.startswith("/faq")),
     (request_handle, lambda message: message.text.startswith("/request")),
-    (start_handle, lambda message: message.text.startswith("/start")),
+
     (help_handle, lambda message: message.text.startswith("/help")),
     (info_handle, lambda message: message.text.startswith("/info")),
     (new_funcs_handler, lambda message: message.text.startswith("/tests")),
